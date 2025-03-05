@@ -257,11 +257,6 @@ Dig deeper into two or three components; interviewer’s feedback should always 
   - **推文中的图片/视频**：通过 CDN 存储和分发，减少服务器带宽压力  
   - **网页静态资源（CSS/JS）**：通过 CDN 传输，提高页面加载速度  
 
-
-## Step 7: Identifying and Resolving Bottlenecks
-
-Identify system bottlenecks and suggest optimizations.
-讨论系统中可能的瓶颈，并讨论解决方案。
 ## Step 7: Identifying and Resolving Bottlenecks  
 Identify system bottlenecks and suggest optimizations.  
 讨论系统中可能的瓶颈，并讨论解决方案。
