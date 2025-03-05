@@ -861,3 +861,133 @@ This design ensures:
 ✅ **Cost-effective tiered storage** 低成本的分层存储  
 ✅ **Optimized uploads and CDN delivery** 优化的上传与 CDN 分发  
 
+
+# Example 5: Multi-Region Inventory Management System 多区域库存管理系统
+
+## Step 1: Requirements Clarifications 需求澄清
+Clarify what parts of the system we will be focusing on.  
+必须理清需要解决的问题的详细需求。
+
+### **Scenario 场景**
+Design a global inventory management system that ensures inventory consistency across multiple warehouses (e.g., North America, Europe, Asia).  
+设计一个支持全球库存管理的系统，确保同一商品在不同仓库（如北美、欧洲、亚洲）的库存数据一致。
+
+The system must ensure:  
+系统必须确保：
+- **Cross-region consistency 跨区域一致性**: Prevent overselling by synchronizing inventory updates across different regions.  
+- **Concurrency control 并发控制**: Efficiently handle concurrent stock updates to reduce conflicts.  
+- **Latency optimization 低延迟优化**: Route user requests to the nearest warehouse for minimal latency.  
+- **Scalability 扩展性**: Handle peak loads efficiently, ensuring smooth order processing.  
+
+### **Key Questions 关键问题**
+- How do we ensure consistency across multiple warehouses while maintaining low latency?  
+- How do we optimize inventory updates to handle high traffic?  
+- How do we prevent overselling during flash sales?  
+
+---
+
+## Step 2: System Interface Definition 系统接口定义
+Define core system APIs to ensure proper interaction between components.  
+定义核心 API，确保系统不同模块之间的交互。
+
+### **APIs for Multi-Region Inventory Management System 多区域库存管理系统 API**
+```plaintext
+checkInventory(product_id, region, …)  # 查询库存
+reserveStock(user_id, product_id, quantity, region, …)  # 预扣库存
+confirmOrder(order_id, user_id, product_id, quantity, region, …)  # 确认订单（最终扣减库存）
+releaseStock(order_id, user_id, product_id, quantity, region, …)  # 释放库存（订单取消）
+syncInventory(product_id, region, stock_level, …)  # 跨区域同步库存
+```
+
+---
+
+## Step 3: Back-of-the-Envelope Estimation 粗略估算
+Estimate system scale for scalability, partitioning, and caching.  
+估算系统的流量和存储需求，以指导后续的伸缩性、分片和缓存设计。
+
+### **Estimation Factors 估算因素**
+- **Active users per second 并发用户数**: 2M concurrent users (200 万用户并发)
+- **Peak transactions per second 订单请求峰值**: 500K orders/sec (50 万订单/秒)
+- **Storage requirements 存储需求**:  
+  - If each inventory record is 1KB, tracking 10M products → **10GB per update cycle**  
+
+---
+
+## Step 4: Defining Data Model 数据模型定义
+Define entities and relationships to guide database design.  
+定义数据模型，明确系统中的关键实体及交互方式。
+
+### **Entities 实体**
+```plaintext
+Product: ProductID, Name, Category, SKU, GlobalStock, Regions[]
+Warehouse: WarehouseID, Location, Capacity, LastUpdated
+Inventory: ProductID, WarehouseID, StockLevel, ReservedStock, LastUpdated
+Order: OrderID, UserID, ProductID, Quantity, Status, WarehouseID
+```
+
+---
+
+## Step 5: High-Level Design 高层架构设计
+### **System Architecture 系统架构**
+1. **Inventory Synchronization 数据同步**
+   - **Asynchronous replication**: Use **DynamoDB Global Tables** or **Kafka** to sync updates across regions.  
+   - **Eventual consistency**: Allow small delays but ensure eventual correctness.  
+
+2. **Concurrency Control 并发控制**
+   - **Two-phase commit (2PC)**: Reserve stock before final deduction.  
+   - **Atomic updates**: Use **DynamoDB Atomic Counter / Redis DECRBY** for safe stock decrement.  
+
+3. **Latency Optimization 低延迟优化**
+   - **Latency-based routing**: Route user requests to the nearest warehouse using **Route53 Latency-Based Routing**.  
+   - **Cache stock levels**: Store frequently accessed stock data in **Redis Cluster**.  
+
+4. **Overselling Prevention 超卖防护**
+   - **Stock reservation**: Deduct inventory **at checkout**, then confirm upon payment.  
+   - **Event-driven stock adjustments**: Use **SQS or Kafka** for delayed stock reconciliation.  
+
+---
+
+## Step 6: Detailed Design 详细设计
+### **Transaction Flow 事务流程**
+1. **Stock Check (库存查询)**  
+   - Check **local warehouse stock** first → if insufficient, route request to **nearest available warehouse**.  
+
+2. **Order Processing (订单处理)**  
+   - Step 1: **Reserve stock** in the local warehouse (soft lock).  
+   - Step 2: **Confirm order** → Finalize stock deduction in distributed storage.  
+
+3. **Stock Synchronization (库存同步机制)**  
+   - Async updates via **Kafka topics** ensure that stock levels remain accurate across regions.  
+
+---
+
+## Step 7: Bottlenecks & Scaling 瓶颈分析 & 扩展性
+### **Potential Bottlenecks 潜在瓶颈**
+- **Inventory synchronization lag**: Asynchronous replication may cause temporary inconsistencies.  
+- **High traffic spikes**: Need **auto-scaling for order processing services**.  
+
+### **Scaling Strategies 扩展策略**
+| 瓶颈        | 解决方案                      |
+|------------|----------------------------|
+| 高并发库存查询 | Redis 作为库存缓存 + 读写分离 |
+| 订单高吞吐量 | Kafka 消息队列异步处理库存更新 |
+| 数据一致性问题 | 采用 DynamoDB 全局表 + SQS 补偿机制 |
+
+---
+
+## Step 8: Common Follow-Up Questions 面试常见追问
+1. **如何优化库存同步延迟？**
+   - 采用 **增量同步 + Kafka 实时流处理**。
+2. **如何降低跨区域请求延迟？**
+   - 使用 **Route53 进行智能路由** + **CDN 预加载库存数据**。
+3. **如何应对秒杀场景？**
+   - 采用 **库存预扣策略** + **Redis 限流** 处理高并发订单。
+
+---
+
+## **Final Thoughts 总结**
+This design ensures:  
+该设计方案确保：
+✅ **Global inventory consistency** 全球库存一致性  
+✅ **High concurrency order processing** 高并发订单处理  
+✅ **Low-latency warehouse routing** 低延迟仓库路由  
