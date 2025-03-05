@@ -335,123 +335,132 @@ Identify system bottlenecks and suggest optimizations.
 ---
 
 # Examples
-## Examples 1：High-Concurrency Shopping Cart System
-## 高并发购物车系统设计
+## Examples 1：High-Concurrency Shopping Cart System 高并发购物车系统设计
 
-## Step 1: Requirements Clarifications
+## Step 1: Requirements Clarifications 需求澄清
 Clarify what parts of the system we will be focusing on.  
 必须理清需要解决的问题的详细需求。
 
-### **Scenario:**
-Design an online shopping cart system that supports millions of users operating simultaneously. The system must ensure:
-- **Real-time synchronization** of the shopping cart across different devices.
-- **Data consistency**, resolving **concurrent update conflicts** (e.g., two users modifying the same product quantity simultaneously).
-- **High availability** to handle high traffic during flash sales.
+### **Scenario 场景**
+Design an online shopping cart system that supports millions of users operating simultaneously. The system must ensure:  
+设计一个支持数百万用户同时操作的在线购物车系统，系统必须确保：
+- **Real-time synchronization 实时同步**: Shopping cart data is updated across multiple devices in real-time.  
+  购物车数据需在不同设备间实时同步。
+- **Data consistency 数据一致性**: Handling concurrent updates to prevent conflicts when multiple users modify the same product quantity.  
+  处理并发更新，防止多个用户修改同一商品数量时发生冲突。
+- **High availability 高可用性**: The system must handle extreme traffic conditions, such as flash sales.  
+  需要应对极端高并发情况，如秒杀活动。
 
-### **Key Questions:**
-- Should the system support real-time cart synchronization across multiple devices?
-- How do we handle concurrent updates to the same cart item?
-- Should we optimize for high-traffic events like flash sales?
-- Do we need to consider both frontend and backend scalability?
+### **Key Questions 关键问题**
+- Should the system support real-time cart synchronization across multiple devices?  
+  系统是否需要支持跨设备购物车实时同步？
+- How do we handle concurrent updates to the same cart item?  
+  如何处理多个用户同时修改同一购物车商品的问题？
+- Should we optimize for high-traffic events like flash sales?  
+  是否需要针对秒杀等高并发场景进行优化？
+- Do we need to consider both frontend and backend scalability?  
+  是否需要考虑前后端的可扩展性？
 
 ---
 
-## Step 2: System Interface Definition
+## Step 2: System Interface Definition 系统接口定义
 Define core system APIs to ensure proper interaction between components.  
 定义核心 API，确保系统不同模块之间的交互。
 
-### **APIs for Shopping Cart System**
-- `addToCart(user_id, item_id, quantity, timestamp, device_id, …)`
-- `removeFromCart(user_id, item_id, …)`
-- `updateCart(user_id, item_id, new_quantity, version_number, …)`
-- `checkout(user_id, cart_id, payment_info, …)`
+### **APIs for Shopping Cart System 购物车系统 API**
+- `addToCart(user_id, item_id, quantity, timestamp, device_id, …)`  
+- `removeFromCart(user_id, item_id, …)`  
+- `updateCart(user_id, item_id, new_quantity, version_number, …)`  
+- `checkout(user_id, cart_id, payment_info, …)`  
 - `syncCart(user_id, device_id, last_sync_time, …)`
 
 ---
 
-## Step 3: Back-of-the-Envelope Estimation
+## Step 3: Back-of-the-Envelope Estimation 粗略估算
 Estimate system scale for scalability, partitioning, and caching.  
 估算系统的流量和存储需求，以指导后续的伸缩性、分片和缓存设计。
 
-### **Estimation Factors**
-- **Active users per second:** 1M concurrent users
-- **Shopping cart updates per second:** 500K updates/sec
-- **Read-heavy operations:** Cart retrieval should be optimized
-- **Storage requirements:** If each cart stores 1KB, with 100M active users → **100GB of storage per session**
+### **Estimation Factors 估算因素**
+- **Active users per second 并发用户数**: 1M concurrent users (100 万用户并发)
+- **Shopping cart updates per second 购物车更新频率**: 500K updates/sec (50 万次/秒)
+- **Read-heavy operations 读多写少**: Cart retrieval should be optimized (优化购物车读取)
+- **Storage requirements 存储需求**:  
+  - If each cart stores 1KB, with 100M active users → **100GB of storage per session**  
+    如果每个购物车占 1KB，活跃用户 1 亿，则单次存储需求为 **100GB**
 
 ---
 
-## Step 4: Defining Data Model
+## Step 4: Defining Data Model 数据模型定义
 Define entities and relationships to guide database design.  
 定义数据模型，明确系统中的关键实体及交互方式。
 
-### **Entities**
-- **User**: `UserID, Name, Email, LastLogin, …`
-- **Cart**: `CartID, UserID, Timestamp, Version, Items[]`
-- **CartItem**: `ItemID, CartID, Quantity, LastUpdated, Version`
-- **Order**: `OrderID, CartID, PaymentStatus, CreatedAt`
+### **Entities 实体**
+- **User 用户**: `UserID, Name, Email, LastLogin, …`
+- **Cart 购物车**: `CartID, UserID, Timestamp, Version, Items[]`
+- **CartItem 购物车商品**: `ItemID, CartID, Quantity, LastUpdated, Version`
+- **Order 订单**: `OrderID, CartID, PaymentStatus, CreatedAt`
 
-### **Storage Considerations**
-- **Structured data (cart, users, orders)** → **Stored in SQL/NoSQL databases**
-- **Session data (real-time updates)** → **Stored in Redis/Memcached**
-- **Persistent logs (cart history, checkout logs)** → **Stored in distributed storage (S3, HDFS)**
+### **Storage Considerations 存储考虑**
+- **Structured data 结构化数据 (cart, users, orders)** → **Stored in SQL/NoSQL databases (存入 SQL/NoSQL 数据库)**
+- **Session data 会话数据 (real-time updates)** → **Stored in Redis/Memcached (存入 Redis/Memcached)**
+- **Persistent logs 永久日志 (cart history, checkout logs)** → **Stored in distributed storage (S3, HDFS) (存入分布式存储，如 S3, HDFS)**
 
 ---
 
-## Step 5: High-Level Design
+## Step 5: High-Level Design 高层架构设计
 Draw a block diagram with core system components.  
 画出系统架构的高层设计，定义核心模块。
 
-### **System Architecture**
-1. **Frontend (Web/Mobile App)**
-2. **API Gateway (Rate limiting, Authentication)**
-3. **Shopping Cart Service**
-   - **WebSocket for real-time updates**
-   - **DynamoDB for cart storage**
-   - **Redis/Memcached for caching**
-4. **Checkout & Order Processing**
-   - **Queue-based order processing (SQS/Kafka)**
-   - **Payment Service**
-5. **Analytics & Monitoring**
-   - **Logging & Metrics (ELK, Prometheus)**
+### **System Architecture 系统架构**
+1. **Frontend (Web/Mobile App) 前端 (网页/移动应用)**
+2. **API Gateway (Rate limiting, Authentication) API 网关 (限流，认证)**
+3. **Shopping Cart Service 购物车服务**
+   - **WebSocket for real-time updates** (基于 WebSocket 进行实时同步)
+   - **DynamoDB for cart storage** (使用 DynamoDB 存储购物车数据)
+   - **Redis/Memcached for caching** (使用 Redis/Memcached 进行缓存)
+4. **Checkout & Order Processing 结算和订单处理**
+   - **Queue-based order processing (SQS/Kafka)** (基于消息队列 (SQS/Kafka) 处理订单)
+   - **Payment Service** (支付服务)
+5. **Analytics & Monitoring 分析和监控**
+   - **Logging & Metrics (ELK, Prometheus)** (使用 ELK, Prometheus 进行日志和指标监控)
 
 ---
 
-## Step 6: Detailed Design
-### **Concurrency Control: Resolving Conflicts**
-**Problem:** How do we handle two users modifying the same cart item at the same time?  
-**Solution:**  
-- **Vector Clocks / Versioning**: Assign a **version number** to each cart update. If a client tries to update an outdated version, reject the update.
-- **DynamoDB Conditional Writes**: Only allow updates if the **server version matches the client version**.
+## Step 6: Detailed Design 详细设计
+### **Concurrency Control: Resolving Conflicts 并发控制：解决冲突**
+**Problem 问题:** How do we handle two users modifying the same cart item at the same time?  
+**如何处理两个用户同时修改购物车商品的问题？**  
+**Solution 解决方案:**  
+- **Vector Clocks / Versioning 向量时钟/版本控制**: Assign a **version number** to each cart update. If a client tries to update an outdated version, reject the update.  
+  为每次购物车更新分配**版本号**，如果客户端更新的版本过时，则拒绝该更新。
+- **DynamoDB Conditional Writes 条件写入**: Only allow updates if the **server version matches the client version**.  
+  仅允许当**服务器版本匹配客户端版本**时执行更新。
 
-### **Real-time Synchronization**
-- **WebSocket (AWS API Gateway WebSocket)**
-- **DynamoDB Streams + Lambda for data synchronization**
+### **Real-time Synchronization 实时同步**
+- **WebSocket (AWS API Gateway WebSocket)**  
+- **DynamoDB Streams + Lambda for data synchronization**  
+  (使用 DynamoDB Streams + Lambda 进行数据同步)
 
-### **Handling Flash Sales (High Traffic Optimization)**
-- **API Rate Limiting**: Limit excessive cart updates per user.
-- **Preloading Hot Items in Redis**: Store frequently bought items in **cache** to avoid database overload.
-- **Asynchronous Order Processing**: Use **SQS/Kafka** to queue orders and process them asynchronously.
+### **Handling Flash Sales (High Traffic Optimization) 处理秒杀流量优化**
+- **API Rate Limiting API 限流**: Limit excessive cart updates per user.  
+  限制每个用户的购物车更新频率。
+- **Preloading Hot Items in Redis 热门商品预加载**: Store frequently bought items in **cache** to avoid database overload.  
+  将热门商品预加载到缓存中，减少数据库压力。
+- **Asynchronous Order Processing 异步订单处理**: Use **SQS/Kafka** to queue orders and process them asynchronously.  
+  使用 SQS/Kafka 队列异步处理订单。
 
 ---
 
-## Step 7: Identifying and Resolving Bottlenecks
-### **Single Point of Failure**
-**Issue:** If a service component (e.g., database) crashes, the system may be unavailable.  
-**Solution:**
-- **Multi-region Deployment**
-- **Load Balancing with Nginx, AWS ALB**
-- **Primary-Replica DB for automatic failover**
+## Step 7: Identifying and Resolving Bottlenecks 识别和解决瓶颈
+### **Single Point of Failure 单点故障**
+**Issue 问题:** If a service component crashes, the system may be unavailable.  
+**如果某个服务组件崩溃，系统可能无法使用。**  
+**Solution 解决方案:**  
+- **Multi-region Deployment** (多区域部署)
+- **Load Balancing with Nginx, AWS ALB** (使用 Nginx, AWS ALB 进行负载均衡)
+- **Primary-Replica DB for automatic failover** (主从数据库自动故障转移)
 
-### **Handling High Read Traffic**
-**Issue:** Millions of users accessing cart data simultaneously may overload the database.  
-**Solution:**
-- **Read Replicas for Database**: Distribute read queries.
-- **Redis Caching**: Store frequently accessed carts in memory.
-
-### **Monitoring & Alerting**
-**Issue:** Lack of monitoring may result in unnoticed failures.  
-**Solution:**
-- **ELK Stack for log monitoring**
-- **Prometheus + Grafana for real-time metrics**
-- **PagerDuty for automated alerts**
+### **Monitoring & Alerting 监控与告警**
+- **ELK Stack for log monitoring** (使用 ELK 监控日志)
+- **Prometheus + Grafana for real-time metrics** (使用 Prometheus + Grafana 进行实时监控)
+- **PagerDuty for automated alerts** (使用 PagerDuty 进行自动告警)
