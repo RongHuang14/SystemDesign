@@ -593,7 +593,10 @@ LogSubscription: SubscriptionID, UserID, FilterCriteria, LastReceived
    - **多区域部署 + 自动恢复策略**
 
 ---
-### **Monitoring & Alerting 监控与告警**
-- **ELK Stack for log monitoring** (使用 ELK 监控日志)
-- **Prometheus + Grafana for real-time metrics** (使用 Prometheus + Grafana 进行实时监控)
-- **PagerDuty for automated alerts** (使用 PagerDuty 进行自动告警)
+
+## **Final Thoughts 总结**
+This design covers **high-throughput log ingestion, real-time querying, and fault tolerance**. It ensures:  
+该设计方案涵盖了 **高吞吐日志写入、实时查询及容错机制**，并确保：
+✅ **Scalability & Cost-efficiency 扩展性 & 成本优化**  
+✅ **Real-time Query Optimization 实时查询优化**  
+✅ **Fault Tolerance & Disaster Recovery 容错 & 容灾**  
