@@ -333,3 +333,125 @@ Identify system bottlenecks and suggest optimizations.
 | **Service Redundancy** | Crashing of critical microservices | Kubernetes Auto Scaling, API Load Balancing |
 | **Lack of Monitoring** | No alerts when performance degrades | Log Monitoring, Metrics Tracking, Automated Alerts |
 ---
+
+# Examples
+## Examples 1：High-Concurrency Shopping Cart System
+## 高并发购物车系统设计
+
+## Step 1: Requirements Clarifications
+Clarify what parts of the system we will be focusing on.  
+必须理清需要解决的问题的详细需求。
+
+### **Scenario:**
+Design an online shopping cart system that supports millions of users operating simultaneously. The system must ensure:
+- **Real-time synchronization** of the shopping cart across different devices.
+- **Data consistency**, resolving **concurrent update conflicts** (e.g., two users modifying the same product quantity simultaneously).
+- **High availability** to handle high traffic during flash sales.
+
+### **Key Questions:**
+- Should the system support real-time cart synchronization across multiple devices?
+- How do we handle concurrent updates to the same cart item?
+- Should we optimize for high-traffic events like flash sales?
+- Do we need to consider both frontend and backend scalability?
+
+---
+
+## Step 2: System Interface Definition
+Define core system APIs to ensure proper interaction between components.  
+定义核心 API，确保系统不同模块之间的交互。
+
+### **APIs for Shopping Cart System**
+- `addToCart(user_id, item_id, quantity, timestamp, device_id, …)`
+- `removeFromCart(user_id, item_id, …)`
+- `updateCart(user_id, item_id, new_quantity, version_number, …)`
+- `checkout(user_id, cart_id, payment_info, …)`
+- `syncCart(user_id, device_id, last_sync_time, …)`
+
+---
+
+## Step 3: Back-of-the-Envelope Estimation
+Estimate system scale for scalability, partitioning, and caching.  
+估算系统的流量和存储需求，以指导后续的伸缩性、分片和缓存设计。
+
+### **Estimation Factors**
+- **Active users per second:** 1M concurrent users
+- **Shopping cart updates per second:** 500K updates/sec
+- **Read-heavy operations:** Cart retrieval should be optimized
+- **Storage requirements:** If each cart stores 1KB, with 100M active users → **100GB of storage per session**
+
+---
+
+## Step 4: Defining Data Model
+Define entities and relationships to guide database design.  
+定义数据模型，明确系统中的关键实体及交互方式。
+
+### **Entities**
+- **User**: `UserID, Name, Email, LastLogin, …`
+- **Cart**: `CartID, UserID, Timestamp, Version, Items[]`
+- **CartItem**: `ItemID, CartID, Quantity, LastUpdated, Version`
+- **Order**: `OrderID, CartID, PaymentStatus, CreatedAt`
+
+### **Storage Considerations**
+- **Structured data (cart, users, orders)** → **Stored in SQL/NoSQL databases**
+- **Session data (real-time updates)** → **Stored in Redis/Memcached**
+- **Persistent logs (cart history, checkout logs)** → **Stored in distributed storage (S3, HDFS)**
+
+---
+
+## Step 5: High-Level Design
+Draw a block diagram with core system components.  
+画出系统架构的高层设计，定义核心模块。
+
+### **System Architecture**
+1. **Frontend (Web/Mobile App)**
+2. **API Gateway (Rate limiting, Authentication)**
+3. **Shopping Cart Service**
+   - **WebSocket for real-time updates**
+   - **DynamoDB for cart storage**
+   - **Redis/Memcached for caching**
+4. **Checkout & Order Processing**
+   - **Queue-based order processing (SQS/Kafka)**
+   - **Payment Service**
+5. **Analytics & Monitoring**
+   - **Logging & Metrics (ELK, Prometheus)**
+
+---
+
+## Step 6: Detailed Design
+### **Concurrency Control: Resolving Conflicts**
+**Problem:** How do we handle two users modifying the same cart item at the same time?  
+**Solution:**  
+- **Vector Clocks / Versioning**: Assign a **version number** to each cart update. If a client tries to update an outdated version, reject the update.
+- **DynamoDB Conditional Writes**: Only allow updates if the **server version matches the client version**.
+
+### **Real-time Synchronization**
+- **WebSocket (AWS API Gateway WebSocket)**
+- **DynamoDB Streams + Lambda for data synchronization**
+
+### **Handling Flash Sales (High Traffic Optimization)**
+- **API Rate Limiting**: Limit excessive cart updates per user.
+- **Preloading Hot Items in Redis**: Store frequently bought items in **cache** to avoid database overload.
+- **Asynchronous Order Processing**: Use **SQS/Kafka** to queue orders and process them asynchronously.
+
+---
+
+## Step 7: Identifying and Resolving Bottlenecks
+### **Single Point of Failure**
+**Issue:** If a service component (e.g., database) crashes, the system may be unavailable.  
+**Solution:**
+- **Multi-region Deployment**
+- **Load Balancing with Nginx, AWS ALB**
+- **Primary-Replica DB for automatic failover**
+
+### **Handling High Read Traffic**
+**Issue:** Millions of users accessing cart data simultaneously may overload the database.  
+**Solution:**
+- **Read Replicas for Database**: Distribute read queries.
+- **Redis Caching**: Store frequently accessed carts in memory.
+
+### **Monitoring & Alerting**
+**Issue:** Lack of monitoring may result in unnoticed failures.  
+**Solution:**
+- **ELK Stack for log monitoring**
+- **Prometheus + Grafana for real-time metrics**
+- **PagerDuty for automated alerts**
