@@ -600,3 +600,132 @@ This design covers **high-throughput log ingestion, real-time querying, and faul
 ✅ **Scalability & Cost-efficiency 扩展性 & 成本优化**  
 ✅ **Real-time Query Optimization 实时查询优化**  
 ✅ **Fault Tolerance & Disaster Recovery 容错 & 容灾**  
+
+# Example 3: Real-Time Product Recommendation Engine 实时商品推荐引擎
+
+## Step 1: Requirements Clarifications 需求澄清
+Clarify what parts of the system we will be focusing on.  
+必须理清需要解决的问题的详细需求。
+
+### **Scenario 场景**
+Design a low-latency personalized recommendation system for an e-commerce platform.  
+为电商平台设计一个低延迟的个性化推荐系统。
+
+The system must ensure:  
+系统必须确保：
+- **Low-latency recommendations 低延迟推荐**: Return recommendations within **100ms** when users browse product pages.  
+  用户浏览商品页面时，需在 **100ms 内** 返回推荐结果。
+- **Cold-start handling 冷启动问题处理**: Recommend products for **new users with no behavior data**.  
+  解决新用户无历史行为数据时的推荐问题。
+- **Multi-source data integration 多数据源整合**: Combine **historical user behavior, real-time clickstream data, and catalog metadata**.  
+  整合 **用户历史行为、实时点击流数据和商品目录元数据** 进行推荐。
+
+### **Key Questions 关键问题**
+- How do we design a recommendation system that returns results within 100ms?  
+  如何设计一个能够 **100ms 内** 返回结果的推荐系统？
+- How do we handle new users with no behavior history?  
+  如何处理 **新用户冷启动问题**？
+- How do we integrate real-time and offline data for better recommendations?  
+  如何整合 **实时数据** 和 **离线数据** 提供更优推荐？
+
+---
+
+## Step 2: System Interface Definition 系统接口定义
+Define core system APIs to ensure proper interaction between components.  
+定义核心 API，确保系统不同模块之间的交互。
+
+### **APIs for Product Recommendation System 商品推荐系统 API**
+```plaintext
+getRecommendations(user_id, context, limit, …)  # 获取推荐商品列表
+logUserEvent(user_id, event_type, item_id, timestamp, …)  # 记录用户行为事件
+updateModel(model_id, training_data_path, …)  # 更新推荐模型
+```
+
+---
+
+## Step 3: Back-of-the-Envelope Estimation 粗略估算
+Estimate system scale for scalability, partitioning, and caching.  
+估算系统的流量和存储需求，以指导后续的伸缩性、分片和缓存设计。
+
+### **Estimation Factors 估算因素**
+- **Active users per second 并发用户数**: 500K concurrent users (50 万用户并发)
+- **Recommendation requests per second 推荐请求**: 200K requests/sec (20 万次/秒)
+- **Storage requirements 存储需求**:  
+  - If each user behavior log is 1KB, storing 1 billion logs → **1TB per day**  
+    如果每条用户行为日志 1KB，存储 10 亿条日志 → **每天约 1TB**
+
+---
+
+## Step 4: Defining Data Model 数据模型定义
+Define entities and relationships to guide database design.  
+定义数据模型，明确系统中的关键实体及交互方式。
+
+### **Entities 实体**
+```plaintext
+UserProfile: UserID, Attributes[], Preferences[], LastActive
+UserEvent: UserID, ItemID, EventType, Timestamp
+ProductCatalog: ItemID, Category, Price, PopularityScore, Metadata[]
+RecommendationCache: UserID, CachedRecommendations[], ExpiryTimestamp
+```
+
+---
+
+## Step 5: High-Level Design 高层架构设计
+### **System Architecture 系统架构**
+1. **Real-Time Data Pipeline 实时数据流水线**
+   - **Kinesis / Kafka** captures user events (clicks, views, purchases).  
+   - **Lambda** processes real-time features (e.g., last 10 clicks).  
+
+2. **Offline Data Processing 离线数据处理**
+   - **Glue ETL** processes historical logs → stored in **Redshift / S3** for training.  
+
+3. **Recommendation Engine 推荐引擎**
+   - **SageMaker** deploys ML models, **ElastiCache** stores user embeddings.  
+
+4. **Cold-Start Strategies 冷启动策略**
+   - **Popular items by region** (DynamoDB stores `hot_items` per country).  
+   - **Rule-based recommendations based on device type, category interest**.  
+
+5. **Edge Computing for Latency Optimization 低延迟优化**
+   - **Lambda@Edge** pre-computes recommendations at the nearest data center.  
+
+---
+
+## Step 6: Detailed Design 详细设计
+### **Concurrency Control 并发控制**
+- **Cache expiration**: Recommendations expire after 5 minutes.  
+- **Feature store update**: Syncs user behavior to keep recommendations fresh.  
+
+---
+
+## Step 7: Bottlenecks & Scaling 瓶颈分析 & 扩展性
+### **Potential Bottlenecks 潜在瓶颈**
+- **Model inference latency**: Use **batch processing & caching** to reduce load.  
+- **High traffic spikes**: Auto-scale Kinesis & SageMaker endpoints.  
+
+### **Scaling Strategies 扩展策略**
+| 瓶颈        | 解决方案                      |
+|------------|----------------------------|
+| 模型推理慢   | 预计算推荐缓存 + 批量处理优化      |
+| 请求量过高   | Lambda@Edge 缓存 + CDN 分发   |
+| 数据处理压力 | Kinesis 扩展分区 + Redshift 并行查询 |
+
+---
+
+## Step 8: Common Follow-Up Questions 面试常见追问
+1. **如何优化模型推理速度？**
+   - **量化模型** (Quantized Model) + **Distillation**
+2. **如何降低延迟？**
+   - **预计算推荐缓存** + **边缘计算 Lambda@Edge**
+3. **如何优化热门商品推荐？**
+   - **实时更新 hot_items** + **地域、时间段优化**
+
+---
+
+## **Final Thoughts 总结**
+This design ensures:  
+该设计方案确保：
+✅ **Low-latency real-time recommendations** 低延迟实时推荐  
+✅ **Scalable architecture for e-commerce** 可扩展架构  
+✅ **Cold-start handling for new users** 解决冷启动问题  
+
