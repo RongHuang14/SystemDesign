@@ -729,3 +729,135 @@ This design ensures:
 ✅ **Scalable architecture for e-commerce** 可扩展架构  
 ✅ **Cold-start handling for new users** 解决冷启动问题  
 
+
+# Example 4: Global Image Storage and Distribution System 全球图片存储与分发系统
+
+## Step 1: Requirements Clarifications 需求澄清
+Clarify what parts of the system we will be focusing on.  
+必须理清需要解决的问题的详细需求。
+
+### **Scenario 场景**
+Design an image storage and distribution system similar to Amazon S3, supporting user uploads/downloads globally while ensuring low-latency access.  
+设计一个类似 Amazon S3 的图片存储服务，支持用户上传/下载图片，并确保全球用户低延迟访问。
+
+The system must ensure:  
+系统必须确保：
+- **Low-latency access 全球低延迟访问**: Efficient image retrieval regardless of the user's location.  
+  确保全球范围内的用户都能快速访问图片。
+- **Storage cost optimization 存储成本优化**: Implement tiered storage for hot/cold data.  
+  通过热/冷数据分层存储降低成本。
+- **High-throughput uploads and downloads 高吞吐上传下载**: Handle bulk uploads during peak times (e.g., sales events).  
+  处理高并发图片上传和下载，支持电商促销等场景。
+- **Seamless CDN integration 无缝集成 CDN**: Ensure smooth interaction between storage and CDN.  
+  保证存储系统与 CDN 之间的无缝对接，提高图片分发效率。
+
+### **Key Questions 关键问题**
+- How should we optimize storage cost while ensuring fast retrieval?  
+  如何在保证快速访问的同时优化存储成本？
+- How do we handle high-throughput uploads during peak times?  
+  如何在高峰时段处理高吞吐的上传请求？
+- How do we integrate storage with a global CDN for optimal performance?  
+  如何设计存储架构，使其与全球 CDN 进行高效集成？
+
+---
+
+## Step 2: System Interface Definition 系统接口定义
+Define core system APIs to ensure proper interaction between components.  
+定义核心 API，确保系统不同模块之间的交互。
+
+### **APIs for Image Storage and Distribution System 图片存储与分发系统 API**
+```plaintext
+uploadImage(user_id, image_id, metadata, file_data, …)  # 上传图片
+getImage(image_id, transform_options, …)  # 获取图片（支持缩放、裁剪等变换）
+deleteImage(user_id, image_id, …)  # 删除图片
+generatePresignedURL(user_id, image_id, expiration, …)  # 生成预签名访问 URL
+```
+
+---
+
+## Step 3: Back-of-the-Envelope Estimation 粗略估算
+Estimate system scale for scalability, partitioning, and caching.  
+估算系统的流量和存储需求，以指导后续的伸缩性、分片和缓存设计。
+
+### **Estimation Factors 估算因素**
+- **Active users per second 并发用户数**: 1M concurrent users (100 万用户并发)
+- **Storage requirements 存储需求**:  
+  - If each image is 1MB, storing 1 billion images → **1PB storage required**  
+    如果每张图片 1MB，存储 10 亿张图片 → **需要 1PB 存储**。
+- **Download traffic 图片下载流量**: 5M requests/sec at peak (500 万次/秒，峰值访问量)。
+
+---
+
+## Step 4: Defining Data Model 数据模型定义
+Define entities and relationships to guide database design.  
+定义数据模型，明确系统中的关键实体及交互方式。
+
+### **Entities 实体**
+```plaintext
+ImageMetadata: ImageID, UserID, UploadTimestamp, StorageClass, Tags[], Permissions
+ImageFile: ImageID, FileLocation, Size, Format, Resolution
+CDNCache: ImageID, Region, TTL, LastAccessTime
+```
+
+---
+
+## Step 5: High-Level Design 高层架构设计
+### **System Architecture 系统架构**
+1. **Storage Optimization 存储优化**
+   - **Tiered storage**: Store frequently accessed images in **S3 Standard**, move cold data to **S3 Glacier**.  
+   - **Lifecycle policies**: Automatically transition images based on access patterns.  
+
+2. **Upload Optimization 上传优化**
+   - **S3 Transfer Acceleration**: Use **CloudFront edge nodes** for faster uploads.  
+   - **Multipart Upload**: Split large files into chunks for parallel uploads.  
+
+3. **CDN Integration CDN 集成**
+   - **CloudFront caching**: Use **TTL-based caching** to optimize image delivery.  
+   - **Lambda@Edge**: Perform **on-the-fly image transformations** (resizing, watermarking).  
+
+4. **Metadata Management 元数据管理**
+   - **DynamoDB stores image metadata** (owner, permissions, tags).  
+   - **Pre-signed URLs** for temporary access control.  
+
+---
+
+## Step 6: Detailed Design 详细设计
+### **Concurrency Control 并发控制**
+- **Event-driven processing**: Use **S3 Events + Lambda** for processing.  
+- **Auto-scaling S3 Transfer Acceleration** for handling peak uploads.  
+<img width="465" alt="image" src="https://github.com/user-attachments/assets/225d88c2-7a75-4af8-b2c2-213489c998a6" />
+
+
+---
+
+## Step 7: Bottlenecks & Scaling 瓶颈分析 & 扩展性
+### **Potential Bottlenecks 潜在瓶颈**
+- **Storage cost**: Reduce costs by implementing intelligent tiering.  
+- **Global latency**: Use CDN with nearest edge caching.  
+
+### **Scaling Strategies 扩展策略**
+| 瓶颈        | 解决方案                      |
+|------------|----------------------------|
+| 存储成本高   | S3 Lifecycle Policies + Glacier 存储优化 |
+| 上传速度慢   | S3 Transfer Acceleration + 分块上传 |
+| 访问延迟高   | CloudFront 缓存 + Lambda@Edge 处理 |
+
+---
+
+## Step 8: Common Follow-Up Questions 面试常见追问
+1. **如何优化冷数据访问？**
+   - 预热 S3 Glacier 数据 + 缓存热点图片。
+2. **如何提升上传性能？**
+   - 采用 **多线程上传 + S3 Transfer Acceleration**。
+3. **如何优化图片访问速度？**
+   - 使用 **CDN + 最近边缘缓存策略**。
+
+---
+
+## **Final Thoughts 总结**
+This design ensures:  
+该设计方案确保：
+✅ **Scalable global image storage** 可扩展的全球图片存储  
+✅ **Cost-effective tiered storage** 低成本的分层存储  
+✅ **Optimized uploads and CDN delivery** 优化的上传与 CDN 分发  
+
