@@ -460,6 +460,139 @@ Draw a block diagram with core system components.
 - **Load Balancing with Nginx, AWS ALB** (使用 Nginx, AWS ALB 进行负载均衡)
 - **Primary-Replica DB for automatic failover** (主从数据库自动故障转移)
 
+
+# Example 2: Distributed Log Processing Service 分布式日志处理服务
+
+## Step 1: Requirements Clarifications 需求澄清
+Clarify what parts of the system we will be focusing on.  
+必须理清需要解决的问题的详细需求。
+
+### **Scenario 场景**
+Design a distributed log collection and analysis system that supports ingesting millions of log entries per second while allowing real-time querying.  
+设计一个日志收集与分析系统，需支持每秒百万级日志条目写入，并同时允许实时查询。
+
+The system must ensure:  
+系统必须确保：
+- **High-throughput ingestion 高吞吐写入**: Efficiently collect and store massive log data.  
+  高效收集并存储海量日志数据。
+- **Real-time querying 实时查询**: Allow querying recent logs within seconds.  
+  允许用户在秒级时间内查询最近的日志数据。
+- **Fault tolerance 容错性**: Ensure system availability and data consistency even in case of node failures.  
+  即使在节点故障情况下，也要保证系统的高可用性和数据一致性。
+
+### **Key Questions 关键问题**
+- How should we design the system to handle millions of log entries per second?  
+  该系统如何设计以处理每秒百万级的日志条目？
+- What storage solutions should be used to balance cost, performance, and durability?  
+  如何选择存储方案，以在成本、性能和持久性之间取得平衡？
+- How do we ensure real-time querying performance?  
+  如何保证实时查询的性能？
+- How can we maintain high availability in case of node failures?  
+  如何在节点故障时保持系统的高可用性？
+
+---
+
+## Step 2: System Interface Definition 系统接口定义
+Define core system APIs to ensure proper interaction between components.  
+定义核心 API，确保系统不同模块之间的交互。
+
+### **APIs for Log Processing System 日志处理系统 API**
+```plaintext
+ingestLog(log_id, source, timestamp, log_data, …)  # 日志写入
+queryLogs(query_params, time_range, limit, …)  # 查询日志
+deleteLogs(log_id, …)  # 删除日志
+streamLogs(subscription_id, filter_criteria, …)  # 订阅实时日志流
+```
+
+---
+
+## Step 3: Back-of-the-Envelope Estimation 粗略估算
+Estimate system scale for scalability, partitioning, and caching.  
+估算系统的流量和存储需求，以指导后续的伸缩性、分片和缓存设计。
+
+### **Estimation Factors 估算因素**
+- **Log ingestion rate 日志写入速率**: 5M logs/sec (500 万日志/秒)
+- **Storage requirements 存储需求**:  
+  - If each log entry is 1KB, storing logs for 30 days → **13.5TB per day**  
+    如果每条日志 1KB，存储 30 天 → **每天约 13.5TB**
+- **Query frequency 查询频率**: 100K queries/sec (10 万查询/秒)
+
+---
+
+## Step 4: Defining Data Model 数据模型定义
+Define entities and relationships to guide database design.  
+定义数据模型，明确系统中的关键实体及交互方式。
+
+### **Entities 实体**
+```plaintext
+LogEntry: LogID, Source, Timestamp, Message, Severity
+LogIndex: LogID, IndexedFields[], CreatedAt
+LogSubscription: SubscriptionID, UserID, FilterCriteria, LastReceived
+```
+
+### **Storage Considerations 存储考虑**
+| 数据类型         | 存储方案                          |
+|---------------|--------------------------------|
+| 热数据 (Recent logs)  | OpenSearch (Elasticsearch) |
+| 冷数据 (Archived logs) | S3 / HDFS                  |
+| 实时流处理         | Kinesis / Kafka               |
+
+---
+
+## Step 5: High-Level Design 高层架构设计
+### **System Architecture 系统架构**
+1. **Log Ingestion Service 日志写入服务**
+   - **Kafka / Kinesis for high-throughput ingestion** (使用 Kafka/Kinesis 进行高吞吐写入)
+   - **Batch compression (Protocol Buffers) to reduce network overhead** (批量压缩，如 Protocol Buffers 以减少网络开销)
+2. **Storage Service 存储服务**
+   - **Time-based & Hash-based partitioning** (基于时间+哈希分片存储)
+   - **OpenSearch (Elasticsearch) for indexing & querying** (使用 OpenSearch/ES 进行索引和查询)
+   - **Cold storage (S3, HDFS) for historical logs** (历史日志存入 S3/HDFS)
+3. **Query Service 查询服务**
+   - **Pre-aggregated query results for fast analytics** (预聚合查询加速分析)
+4. **Fault Tolerance 容错机制**
+   - **Cross-region replication (CRR) for disaster recovery** (跨区域复制以实现容灾)
+   - **Auto-scaling for dynamic workload balancing** (自动扩展以动态平衡负载)
+
+---
+
+## Step 6: Detailed Design 详细设计
+### **Concurrency Control 并发控制**
+- **Write-ahead logging (WAL) for durability** (使用预写日志 WAL 保证持久性)
+- **Primary-Replica replication for availability** (主从复制确保高可用性)
+
+### **Handling Large-Scale Queries 处理大规模查询**
+| 方案               | 优势                                      | 劣势 |
+|------------------|--------------------------------------|------|
+| **Sharded Indexing** | 分片索引提高查询吞吐量              | 需要额外的索引维护成本 |
+| **Query Caching**   | 提高重复查询的响应速度                | 可能导致数据过期问题 |
+| **Pre-aggregated Results** | 适用于定期分析查询               | 适用于部分查询场景 |
+
+---
+
+## Step 7: Bottlenecks & Scaling 瓶颈分析 & 扩展性
+### **Potential Bottlenecks 潜在瓶颈**
+- **Storage Scaling (存储扩展)**: Need tiered storage to manage cost and performance. (需要分层存储)
+- **Query Performance (查询性能)**: Avoid full-table scans via indexing & caching. (使用索引和缓存减少全表扫描)
+
+### **Scaling Strategies 扩展策略**
+| 瓶颈        | 解决方案                      |
+|------------|----------------------------|
+| 高写入吞吐量 | Kafka 分区扩展 + 批量写入优化  |
+| 查询负载过高 | 读写分离 + ES 查询优化       |
+| 存储成本优化 | 热/冷存储分离 + 数据生命周期管理 |
+
+---
+
+## Step 8: Common Follow-Up Questions 面试常见追问
+1. **如何优化实时查询的性能？**
+   - 采用 **索引优化 + 预计算查询结果**
+2. **如何应对 Kafka 日志丢失？**
+   - 启用 **ISR (In-Sync Replicas)** 确保日志不丢失
+3. **如何应对集群故障？**
+   - **多区域部署 + 自动恢复策略**
+
+---
 ### **Monitoring & Alerting 监控与告警**
 - **ELK Stack for log monitoring** (使用 ELK 监控日志)
 - **Prometheus + Grafana for real-time metrics** (使用 Prometheus + Grafana 进行实时监控)
